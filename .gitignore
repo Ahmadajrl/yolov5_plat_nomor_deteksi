@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+venv/
+env/
+.env/
+.venv/
+
+# YOLOv5 training outputs (tidak perlu di-push)
+yolov5/runs/
+yolov5/datasets/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Model weights (gunakan Git LFS atau simpan di release)
+# best.pt  <- di-track via Git LFS (lihat .gitattributes)
+
+# Large notebook (opsional, bisa dikomentari jika ingin push)
+*.ipynb

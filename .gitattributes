@@ -1,0 +1,11 @@
+# Normalisasi line ending
+* text=auto
+
+# Binary files — jangan ubah line ending
+*.pt binary
+*.pth binary
+*.weights binary
+*.jpg binary
+*.jpeg binary
+*.png binary
+*.gif binary
