@@ -1,14 +1,8 @@
 import streamlit as st
-import torch
 import numpy as np
 from PIL import Image
-import sys
 import os
-
-# ─── Tambahkan yolov5 ke sys.path agar module-nya bisa diimpor ──────────────
-YOLOV5_PATH = os.path.join(os.path.dirname(__file__), "yolov5")
-if YOLOV5_PATH not in sys.path:
-    sys.path.insert(0, YOLOV5_PATH)
+import pandas as pd
 
 # ─── Konfigurasi halaman ─────────────────────────────────────────────────────
 st.set_page_config(
@@ -28,17 +22,10 @@ MODEL_PATH = os.path.join(os.path.dirname(__file__), "best.pt")
 
 # ─── Load model (cache agar tidak reload setiap interaksi) ───────────────────
 @st.cache_resource
-def load_model(conf: float = 0.35, iou: float = 0.45):
-    """Muat model YOLOv5 custom dari best.pt secara lokal."""
-    model = torch.hub.load(
-        YOLOV5_PATH,
-        "custom",
-        path=MODEL_PATH,
-        source="local",
-        verbose=False,
-    )
-    model.conf = conf
-    model.iou = iou
+def load_model():
+    """Muat model YOLOv5 custom dari best.pt menggunakan ultralytics."""
+    from ultralytics import YOLO
+    model = YOLO(MODEL_PATH)
     return model
 
 # ─── Sidebar: pengaturan inferensi ───────────────────────────────────────────
@@ -60,9 +47,6 @@ with st.sidebar:
 with st.spinner("⏳ Memuat model YOLOv5..."):
     try:
         model = load_model()
-        # Terapkan threshold terbaru dari sidebar
-        model.conf = conf_threshold
-        model.iou = iou_threshold
         st.sidebar.success("✅ Model berhasil dimuat!")
     except Exception as e:
         st.error(f"❌ Gagal memuat model: {e}")
@@ -87,31 +71,51 @@ if uploaded_file is not None:
 
     # ─── Inferensi ───────────────────────────────────────────────────────────
     with st.spinner("🔍 Mendeteksi plat nomor..."):
-        results = model(image_np, size=img_size)
+        results = model(
+            image_np,
+            conf=conf_threshold,
+            iou=iou_threshold,
+            imgsz=img_size,
+            verbose=False,
+        )
 
     # ─── Render bounding box ─────────────────────────────────────────────────
-    # results.render() mengembalikan list numpy array BGR
-    result_img_bgr = np.array(results.render()[0])
+    # results[0].plot() mengembalikan numpy array BGR dengan bounding box
+    result_img_bgr = results[0].plot()
 
     with col2:
         st.subheader("🔍 Hasil Deteksi")
         st.image(result_img_bgr, use_column_width=True, channels="BGR")
 
     # ─── Tabel hasil ─────────────────────────────────────────────────────────
-    df = results.pandas().xyxy[0]
+    boxes = results[0].boxes
 
-    if df.empty:
+    if boxes is None or len(boxes) == 0:
         st.warning("⚠️ Tidak ada plat nomor yang terdeteksi. Coba turunkan Confidence Threshold.")
     else:
-        jumlah = len(df)
+        jumlah = len(boxes)
         st.success(f"✅ Ditemukan **{jumlah}** plat nomor!")
 
         st.subheader("📊 Detail Deteksi")
-        display_df = df[["name", "confidence", "xmin", "ymin", "xmax", "ymax"]].copy()
-        display_df.columns = ["Kelas", "Confidence", "X-Min", "Y-Min", "X-Max", "Y-Max"]
-        display_df["Confidence"] = display_df["Confidence"].map("{:.2%}".format)
-        for col in ["X-Min", "Y-Min", "X-Max", "Y-Max"]:
-            display_df[col] = display_df[col].map("{:.1f}".format)
+
+        # Bangun DataFrame dari boxes
+        xyxy = boxes.xyxy.cpu().numpy()
+        confs = boxes.conf.cpu().numpy()
+        cls_ids = boxes.cls.cpu().numpy().astype(int)
+        names = results[0].names
+
+        rows = []
+        for i in range(jumlah):
+            rows.append({
+                "Kelas": names[cls_ids[i]],
+                "Confidence": f"{confs[i]:.2%}",
+                "X-Min": f"{xyxy[i][0]:.1f}",
+                "Y-Min": f"{xyxy[i][1]:.1f}",
+                "X-Max": f"{xyxy[i][2]:.1f}",
+                "Y-Max": f"{xyxy[i][3]:.1f}",
+            })
+
+        display_df = pd.DataFrame(rows)
         st.dataframe(display_df, use_container_width=True)
 
 # ─── Footer ──────────────────────────────────────────────────────────────────
