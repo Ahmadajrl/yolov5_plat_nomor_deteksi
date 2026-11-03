@@ -1,1 +1,0 @@
-# yolov5_plat_nomor_deteksi
